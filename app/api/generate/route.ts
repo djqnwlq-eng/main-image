@@ -13,9 +13,11 @@ function getApiKey(request: NextRequest): string {
 export async function POST(request: NextRequest) {
   try {
     const apiKey = getApiKey(request);
-    const { productImage, referenceImage, analysis } = await request.json();
+    const { productImage, referenceImage, analysis, customStyle } = await request.json();
 
-    const prompt = `You are a professional product photographer. I am providing TWO images:
+    const hasReference = !!referenceImage;
+
+    const prompt = hasReference ? `You are a professional product photographer. I am providing TWO images:
 1. FIRST image: the PRODUCT (background removed) — this is the ONLY item that must appear in the final photo.
 2. SECOND image: the REFERENCE photo — replicate ONLY the photography style from this image.
 
@@ -41,34 +43,38 @@ CRITICAL REQUIREMENTS:
 - The product must look IDENTICAL to image 1 — preserve all details, labels, colors, shape exactly.
 - The output must be a CLEAN product photo with NO text, NO badges, NO graphics — only the product on a styled background.
 - Square (1:1) format for e-commerce thumbnail.
+- Professional, high-end quality.`
+    : `You are a professional product photographer. I am providing ONE product image (background removed).
+
+Create a professional product photograph based on this style description:
+${customStyle || "Clean, minimal white/light gray background with soft natural lighting from the upper left. Subtle shadow. Eye-level angle. High-end cosmetics brand feel."}
+
+CRITICAL REQUIREMENTS:
+- ONLY the provided product appears. No other products, bottles, or items.
+- The product must look IDENTICAL to the input — preserve all details, labels, colors, shape exactly.
+- The output must be a CLEAN product photo with NO text, NO badges, NO graphics.
+- Square (1:1) format for e-commerce thumbnail.
 - Professional, high-end quality.`;
 
     const productBase64 = productImage.replace(/^data:image\/\w+;base64,/, "");
-    const referenceBase64 = referenceImage.replace(/^data:image\/\w+;base64,/, "");
+
+    const parts: Array<Record<string, unknown>> = [
+      { text: prompt },
+      { inlineData: { mimeType: "image/png", data: productBase64 } },
+    ];
+
+    if (hasReference) {
+      const referenceBase64 = referenceImage.replace(/^data:image\/\w+;base64,/, "");
+      parts.push({ inlineData: { mimeType: "image/jpeg", data: referenceBase64 } });
+    }
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: prompt },
-              {
-                inlineData: {
-                  mimeType: "image/png",
-                  data: productBase64
-                }
-              },
-              {
-                inlineData: {
-                  mimeType: "image/jpeg",
-                  data: referenceBase64
-                }
-              }
-            ]
-          }],
+          contents: [{ parts }],
           generationConfig: {
             responseModalities: ["TEXT", "IMAGE"],
             imageConfig: {

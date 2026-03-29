@@ -6,11 +6,12 @@ interface GeneratedImagesProps {
   images: string[];
   onUpscale: (index: number) => Promise<void>;
   onDownload: (imageDataUrl: string, format: "png" | "jpg") => void;
+  onDelete: (index: number) => void;
   upscaledMap: Record<number, string>;
   upscalingIndex: number | null;
 }
 
-export default function GeneratedImages({ images, onUpscale, onDownload, upscaledMap, upscalingIndex }: GeneratedImagesProps) {
+export default function GeneratedImages({ images, onUpscale, onDownload, onDelete, upscaledMap, upscalingIndex }: GeneratedImagesProps) {
   const [downloadOpen, setDownloadOpen] = useState<number | null>(null);
 
   return (
@@ -48,6 +49,12 @@ export default function GeneratedImages({ images, onUpscale, onDownload, upscale
                     </div>
                   </div>
                 )}
+                <button
+                  onClick={() => onDelete(i)}
+                  className="absolute top-2 right-2 w-7 h-7 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center text-sm transition-colors"
+                >
+                  x
+                </button>
               </div>
             )}
 

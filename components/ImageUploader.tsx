@@ -12,12 +12,20 @@ interface ImageUploaderProps {
   hideLabel?: boolean;
 }
 
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
 export default function ImageUploader({ label, description, image, onImageSelect, onImageRemove, disabled, hideLabel }: ImageUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const [sizeError, setSizeError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback((file: File) => {
+    setSizeError(null);
     if (!file.type.startsWith("image/")) return;
+    if (file.size > MAX_FILE_SIZE) {
+      setSizeError(`파일 크기가 너무 큽니다 (${(file.size / 1024 / 1024).toFixed(1)}MB). 10MB 이하의 이미지를 사용해주세요.`);
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (e) => {
       if (e.target?.result) {
@@ -75,7 +83,8 @@ export default function ImageUploader({ label, description, image, onImageSelect
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 16v-8m0 0l-3 3m3-3l3 3M3 16.5V18a2.25 2.25 0 002.25 2.25h13.5A2.25 2.25 0 0021 18v-1.5m-18 0V7.5A2.25 2.25 0 015.25 5.25h13.5A2.25 2.25 0 0121 7.5v9" />
         </svg>
         <p className="text-sm text-gray-500">{description}</p>
-        <p className="text-xs text-gray-400 mt-1">JPG, PNG, WebP</p>
+        <p className="text-xs text-gray-400 mt-1">JPG, PNG, WebP (최대 10MB)</p>
+        {sizeError && <p className="text-xs text-red-500 mt-2">{sizeError}</p>}
         <input
           ref={inputRef}
           type="file"
