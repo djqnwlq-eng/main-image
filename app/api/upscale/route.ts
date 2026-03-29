@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
           contents: [{
             parts: [
               {
-                text: "Enhance and upscale this product photograph to the highest quality possible. Improve sharpness, detail, and clarity while maintaining the exact same composition, colors, and content. The output should be a pristine, high-resolution version of the same image suitable for e-commerce at 1000x1000 pixels or higher. Do not change any content - only enhance quality and resolution."
+                text: "Upscale this image to higher resolution. CRITICAL: You must output the EXACT SAME image — same composition, same background, same product, same colors, same lighting, same everything. Do NOT add, remove, or change ANY element. Do NOT change the background, style, or mood. Do NOT add any text, graphics, or new objects. The ONLY difference should be higher resolution and sharper details. This is a pure resolution enhancement — nothing else."
               },
               {
                 inlineData: {

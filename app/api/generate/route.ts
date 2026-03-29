@@ -13,34 +13,38 @@ function getApiKey(request: NextRequest): string {
 export async function POST(request: NextRequest) {
   try {
     const apiKey = getApiKey(request);
-    const { productImage, analysis } = await request.json();
+    const { productImage, referenceImage, analysis } = await request.json();
 
-    const prompt = `You are a professional product photographer. I am providing ONE product image (with background removed). Create a completely NEW product photograph featuring ONLY this product.
+    const prompt = `You are a professional product photographer. I am providing TWO images:
+1. FIRST image: the PRODUCT (background removed) — this is the ONLY item that must appear in the final photo.
+2. SECOND image: the REFERENCE photo — replicate ONLY the photography style from this image.
 
-DO NOT copy or reference any other product. The scene must contain ONLY the provided product — no other cosmetic items, bottles, tubes, or packages.
+IMPORTANT — IGNORE these marketing/post-production elements in the reference image:
+- Any text overlays, price tags, discount badges, brand stickers (e.g. "ONLY", "단독기획", "장벽 강화")
+- Graphic badges, circular labels, icons, "+" symbols
+- Secondary product thumbnails, sub-images, inset photos
+- Watermarks, promotional text, arrows, speech bubbles
+- Decorative borders, frames, or graphic overlays
+These are NOT part of the original photograph. Do NOT reproduce them.
 
-Create a new styled background and environment from scratch based on these style directions:
-
-Background: ${analysis.backgroundColor}
-Color Temperature & Tone: ${analysis.tone}
-Props & Decorative Elements: ${analysis.structures}
-Shadow Style: ${analysis.shadow}
-Lighting Setup: ${analysis.lightSource}
-Light Direction: ${analysis.lightDirection}
-Color Palette: ${analysis.colorPalette}
-Composition: ${analysis.composition}
-Camera Angle: ${analysis.cameraAngle}
-Overall Mood: ${analysis.mood}
+Extract and replicate ONLY the pure photography style:
+- Shadow direction, angle, length, and softness: ${analysis.shadow}
+- Light source position and type: ${analysis.lightSource}, direction: ${analysis.lightDirection}
+- Background color and gradient: ${analysis.backgroundColor}
+- Color temperature and tone: ${analysis.tone}
+- Camera angle: ${analysis.cameraAngle}
+- Composition and product placement: ${analysis.composition}
+- Overall mood: ${analysis.mood}
 
 CRITICAL REQUIREMENTS:
-- ONLY the provided product appears in the image. No other products whatsoever.
-- The product must look IDENTICAL to the input — preserve all details, labels, colors, shape exactly.
-- Create a brand new background/scene inspired by the style description above.
-- Square (1:1) format for e-commerce smart store thumbnail.
-- Professional, high-end quality comparable to luxury Korean cosmetics brands.
-- Natural lighting on the product matching the environment.`;
+- ONLY the product from image 1 appears. No other products, bottles, or items.
+- The product must look IDENTICAL to image 1 — preserve all details, labels, colors, shape exactly.
+- The output must be a CLEAN product photo with NO text, NO badges, NO graphics — only the product on a styled background.
+- Square (1:1) format for e-commerce thumbnail.
+- Professional, high-end quality.`;
 
     const productBase64 = productImage.replace(/^data:image\/\w+;base64,/, "");
+    const referenceBase64 = referenceImage.replace(/^data:image\/\w+;base64,/, "");
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${apiKey}`,
@@ -55,6 +59,12 @@ CRITICAL REQUIREMENTS:
                 inlineData: {
                   mimeType: "image/png",
                   data: productBase64
+                }
+              },
+              {
+                inlineData: {
+                  mimeType: "image/jpeg",
+                  data: referenceBase64
                 }
               }
             ]
