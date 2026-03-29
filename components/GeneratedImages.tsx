@@ -11,7 +11,10 @@ interface GeneratedImagesProps {
   upscalingIndex: number | null;
 }
 
-export default function GeneratedImages({ images, onUpscale, onDownload, onDelete, upscaledMap, upscalingIndex }: GeneratedImagesProps) {
+export default function GeneratedImages({
+  images, onUpscale, onDownload, onDelete,
+  upscaledMap, upscalingIndex,
+}: GeneratedImagesProps) {
   const [downloadOpen, setDownloadOpen] = useState<number | null>(null);
 
   return (
@@ -22,7 +25,6 @@ export default function GeneratedImages({ images, onUpscale, onDownload, onDelet
 
         return (
           <div key={i} className="rounded-xl border border-gray-200 overflow-hidden bg-gray-50">
-            {/* 업스케일 전: 단일 이미지 / 업스케일 후: 비교 */}
             {isUpscaled ? (
               <div className="grid grid-cols-2 gap-0">
                 <div className="relative">
