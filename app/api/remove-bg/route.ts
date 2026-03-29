@@ -66,6 +66,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ image: resultImage });
   } catch (error: unknown) {
+    console.error("[remove-bg] Error:", error);
     const message = error instanceof Error ? error.message : "알 수 없는 오류";
     return NextResponse.json({ error: message }, { status: 500 });
   }

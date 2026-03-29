@@ -9,9 +9,10 @@ interface ImageUploaderProps {
   onImageSelect: (dataUrl: string) => void;
   onImageRemove: () => void;
   disabled?: boolean;
+  hideLabel?: boolean;
 }
 
-export default function ImageUploader({ label, description, image, onImageSelect, onImageRemove, disabled }: ImageUploaderProps) {
+export default function ImageUploader({ label, description, image, onImageSelect, onImageRemove, disabled, hideLabel }: ImageUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -42,7 +43,7 @@ export default function ImageUploader({ label, description, image, onImageSelect
   if (image) {
     return (
       <div className="relative group">
-        <div className="text-sm font-medium text-gray-700 mb-2">{label}</div>
+        {!hideLabel && <div className="text-sm font-medium text-gray-700 mb-2">{label}</div>}
         <div className="relative rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
           <img src={image} alt={label} className="w-full h-48 object-contain" />
           <button
@@ -58,7 +59,7 @@ export default function ImageUploader({ label, description, image, onImageSelect
 
   return (
     <div>
-      <div className="text-sm font-medium text-gray-700 mb-2">{label}</div>
+      {!hideLabel && <div className="text-sm font-medium text-gray-700 mb-2">{label}</div>}
       <div
         onDrop={handleDrop}
         onDragOver={handleDragOver}

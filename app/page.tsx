@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import removeImageBackground from "@imgly/background-removal";
 import { AnalysisResult as AnalysisResultType } from "@/lib/types";
 import ImageUploader from "@/components/ImageUploader";
 import ApiKeyModal from "@/components/ApiKeyModal";
@@ -38,11 +39,13 @@ export default function Home() {
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
   const [upscaledImage, setUpscaledImage] = useState<string | null>(null);
 
+  const [bgRemovalFailed, setBgRemovalFailed] = useState(false);
   const [isRemovingBg, setIsRemovingBg] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUpscaling, setIsUpscaling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [analysisOpen, setAnalysisOpen] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("gemini_api_key");
@@ -60,6 +63,30 @@ export default function Home() {
     return headers;
   };
 
+  const removeBackground = async (imageDataUrl: string) => {
+    setIsRemovingBg(true);
+    setBgRemovalFailed(false);
+    setError(null);
+    try {
+      const blob = await removeImageBackground(imageDataUrl, {
+        output: { format: "image/png" },
+      });
+      const reader = new FileReader();
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      setProductImageRemoved(dataUrl);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "배경 제거 실패";
+      setError(message);
+      setBgRemovalFailed(true);
+    } finally {
+      setIsRemovingBg(false);
+    }
+  };
+
   const handleProductImageSelect = async (dataUrl: string) => {
     setProductImage(dataUrl);
     setProductImageRemoved(null);
@@ -67,26 +94,9 @@ export default function Home() {
     setGeneratedImages([]);
     setSelectedImageIndex(null);
     setUpscaledImage(null);
-    setError(null);
+    setBgRemovalFailed(false);
 
-    setIsRemovingBg(true);
-    try {
-      const compressed = await compressImage(dataUrl);
-      const res = await fetch("/api/remove-bg", {
-        method: "POST",
-        headers: getHeaders(),
-        body: JSON.stringify({ image: compressed }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      setProductImageRemoved(data.image);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "배경 제거 실패";
-      setError(message);
-      if (message.includes("API 키")) setShowApiKeyModal(true);
-    } finally {
-      setIsRemovingBg(false);
-    }
+    await removeBackground(dataUrl);
   };
 
   const handleAnalyze = async () => {
@@ -107,6 +117,7 @@ export default function Home() {
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setAnalysis(data.analysis);
+      setAnalysisOpen(true);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "분석 실패";
       setError(message);
@@ -187,13 +198,14 @@ export default function Home() {
     }
   };
 
-  const currentStep = upscaledImage ? 5 : generatedImages.length > 0 ? 4 : analysis ? 3 : (productImage && referenceImage) ? 2 : 1;
+  const currentStep = upscaledImage ? 6 : generatedImages.length > 0 ? 5 : analysis ? 4 : referenceImage ? 3 : productImageRemoved ? 2 : 1;
   const steps = [
-    { num: 1, label: "업로드" },
-    { num: 2, label: "분석" },
-    { num: 3, label: "생성" },
-    { num: 4, label: "업스케일" },
-    { num: 5, label: "다운로드" },
+    { num: 1, label: "상품" },
+    { num: 2, label: "배경제거" },
+    { num: 3, label: "레퍼런스" },
+    { num: 4, label: "분석" },
+    { num: 5, label: "생성" },
+    { num: 6, label: "다운로드" },
   ];
 
   return (
@@ -251,88 +263,109 @@ export default function Home() {
           </div>
         )}
 
-        {/* 1. Image Upload */}
+        {/* 1. 상품 이미지 + 배경 제거 */}
         <section className="bg-white rounded-2xl border border-gray-200 p-6">
-          <h2 className="text-base font-bold text-gray-900 mb-4">1. 이미지 업로드</h2>
+          <h2 className="text-base font-bold text-gray-900 mb-4">1. 상품 이미지</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <ImageUploader
-              label="상품 이미지"
-              description="상품 사진을 업로드하세요"
-              image={productImage}
-              onImageSelect={handleProductImageSelect}
-              onImageRemove={() => {
-                setProductImage(null);
-                setProductImageRemoved(null);
-                setAnalysis(null);
-                setGeneratedImages([]);
-                setSelectedImageIndex(null);
-                setUpscaledImage(null);
-              }}
-            />
-            <ImageUploader
-              label="레퍼런스 이미지"
-              description="원하는 스타일의 레퍼런스 사진"
-              image={referenceImage}
-              onImageSelect={(url) => {
-                setReferenceImage(url);
-                setAnalysis(null);
-                setGeneratedImages([]);
-                setSelectedImageIndex(null);
-                setUpscaledImage(null);
-              }}
-              onImageRemove={() => {
-                setReferenceImage(null);
-                setAnalysis(null);
-                setGeneratedImages([]);
-                setSelectedImageIndex(null);
-                setUpscaledImage(null);
-              }}
-            />
+            <div>
+              <div className="text-xs font-medium text-gray-500 mb-2">원본</div>
+              <ImageUploader
+                label="상품 이미지"
+                description="상품 사진을 업로드하세요"
+                image={productImage}
+                onImageSelect={handleProductImageSelect}
+                onImageRemove={() => {
+                  setProductImage(null);
+                  setProductImageRemoved(null);
+                  setBgRemovalFailed(false);
+                  setAnalysis(null);
+                  setGeneratedImages([]);
+                  setSelectedImageIndex(null);
+                  setUpscaledImage(null);
+                }}
+                hideLabel
+              />
+            </div>
+            <div>
+              <div className="text-xs font-medium text-gray-500 mb-2">배경 제거</div>
+              {isRemovingBg ? (
+                <div className="flex items-center justify-center h-48 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 text-gray-500">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-sm">배경 제거 중...</span>
+                  </div>
+                </div>
+              ) : bgRemovalFailed ? (
+                <div className="flex flex-col items-center justify-center h-48 rounded-xl border-2 border-dashed border-red-200 bg-red-50 gap-3">
+                  <p className="text-sm text-red-600">배경 제거 실패</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => productImage && removeBackground(productImage)}
+                      className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      다시 시도
+                    </button>
+                    <button
+                      onClick={() => {
+                        setBgRemovalFailed(false);
+                        setProductImageRemoved(productImage);
+                        setError(null);
+                      }}
+                      className="px-3 py-1.5 bg-gray-200 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-300 transition-colors"
+                    >
+                      원본으로 진행
+                    </button>
+                  </div>
+                </div>
+              ) : productImageRemoved ? (
+                <div
+                  className="rounded-xl overflow-hidden border border-gray-200 h-48"
+                  style={{
+                    backgroundImage: "linear-gradient(45deg, #e0e0e0 25%, transparent 25%), linear-gradient(-45deg, #e0e0e0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e0e0e0 75%), linear-gradient(-45deg, transparent 75%, #e0e0e0 75%)",
+                    backgroundSize: "16px 16px",
+                    backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0px"
+                  }}
+                >
+                  <img src={productImageRemoved} alt="배경 제거" className="w-full h-full object-contain" />
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-48 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 text-gray-400 text-sm">
+                  상품 이미지를 먼저 업로드하세요
+                </div>
+              )}
+            </div>
           </div>
         </section>
 
-        {/* Background Removal Result */}
-        {(isRemovingBg || productImageRemoved) && (
-          <section className="bg-white rounded-2xl border border-gray-200 p-6">
-            <h2 className="text-base font-bold text-gray-900 mb-4">배경 제거 결과</h2>
-            {isRemovingBg ? (
-              <div className="flex items-center justify-center h-48 text-gray-500">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-sm">배경을 제거하고 있습니다...</span>
-                </div>
-              </div>
-            ) : productImageRemoved && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-xs text-gray-500 mb-2">원본</div>
-                  <div className="rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
-                    <img src={productImage!} alt="원본" className="w-full h-48 object-contain" />
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500 mb-2">배경 제거됨</div>
-                  <div
-                    className="rounded-xl overflow-hidden border border-gray-200"
-                    style={{
-                      backgroundImage: "linear-gradient(45deg, #e0e0e0 25%, transparent 25%), linear-gradient(-45deg, #e0e0e0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e0e0e0 75%), linear-gradient(-45deg, transparent 75%, #e0e0e0 75%)",
-                      backgroundSize: "16px 16px",
-                      backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0px"
-                    }}
-                  >
-                    <img src={productImageRemoved} alt="배경 제거" className="w-full h-48 object-contain" />
-                  </div>
-                </div>
-              </div>
-            )}
-          </section>
-        )}
+        {/* 2. 레퍼런스 이미지 */}
+        <section className="bg-white rounded-2xl border border-gray-200 p-6">
+          <h2 className="text-base font-bold text-gray-900 mb-4">2. 레퍼런스 이미지</h2>
+          <ImageUploader
+            label="레퍼런스 이미지"
+            description="원하는 스타일의 레퍼런스 사진"
+            image={referenceImage}
+            onImageSelect={(url) => {
+              setReferenceImage(url);
+              setAnalysis(null);
+              setGeneratedImages([]);
+              setSelectedImageIndex(null);
+              setUpscaledImage(null);
+            }}
+            onImageRemove={() => {
+              setReferenceImage(null);
+              setAnalysis(null);
+              setGeneratedImages([]);
+              setSelectedImageIndex(null);
+              setUpscaledImage(null);
+            }}
+          />
+        </section>
 
-        {/* 2. Analysis */}
-        {productImage && referenceImage && (
+        {/* 3. Analysis */}
+        {referenceImage && (
           <section className="bg-white rounded-2xl border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-bold text-gray-900">2. 레퍼런스 분석</h2>
+              <h2 className="text-base font-bold text-gray-900">3. 레퍼런스 분석</h2>
               <button
                 onClick={handleAnalyze}
                 disabled={isAnalyzing}
@@ -342,7 +375,20 @@ export default function Home() {
                 {isAnalyzing ? "분석 중..." : analysis ? "다시 분석" : "레퍼런스 분석하기"}
               </button>
             </div>
-            {analysis && <AnalysisResultComponent analysis={analysis} />}
+            {analysis && (
+              <div>
+                <button
+                  onClick={() => setAnalysisOpen(!analysisOpen)}
+                  className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors mb-3"
+                >
+                  <svg className={`w-4 h-4 transition-transform ${analysisOpen ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                  분석 결과 {analysisOpen ? "접기" : "보기"}
+                </button>
+                {analysisOpen && <AnalysisResultComponent analysis={analysis} />}
+              </div>
+            )}
           </section>
         )}
 
@@ -350,7 +396,7 @@ export default function Home() {
         {analysis && productImageRemoved && (
           <section className="bg-white rounded-2xl border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-bold text-gray-900">3. 썸네일 생성</h2>
+              <h2 className="text-base font-bold text-gray-900">4. 썸네일 생성</h2>
               <button
                 onClick={handleGenerate}
                 disabled={isGenerating}
@@ -382,7 +428,7 @@ export default function Home() {
         {selectedImageIndex !== null && (
           <section className="bg-white rounded-2xl border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-bold text-gray-900">4. 업스케일</h2>
+              <h2 className="text-base font-bold text-gray-900">5. 업스케일</h2>
               <button
                 onClick={handleUpscale}
                 disabled={isUpscaling}
@@ -422,7 +468,7 @@ export default function Home() {
         {/* 5. Download */}
         {(selectedImageIndex !== null || upscaledImage) && (
           <section className="bg-white rounded-2xl border border-gray-200 p-6">
-            <h2 className="text-base font-bold text-gray-900 mb-4">5. 다운로드</h2>
+            <h2 className="text-base font-bold text-gray-900 mb-4">6. 다운로드</h2>
             <div className="flex flex-wrap gap-3">
               {upscaledImage && (
                 <>
